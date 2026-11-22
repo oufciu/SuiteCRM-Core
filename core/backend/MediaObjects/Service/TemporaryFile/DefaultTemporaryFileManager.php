@@ -55,11 +55,13 @@ class DefaultTemporaryFileManager implements TemporaryFileManagerInterface
             return $this->projectDir . DIRECTORY_SEPARATOR . 'tmp';
         }
 
-        if (!str_starts_with($baseDir, DIRECTORY_SEPARATOR)) {
-            return $this->projectDir . DIRECTORY_SEPARATOR . $baseDir;
+        if (str_starts_with($baseDir, DIRECTORY_SEPARATOR)
+            || (DIRECTORY_SEPARATOR === '\\' && preg_match('~^(?:/|[A-Za-z]:[/\\\\])~', $baseDir) === 1)
+        ) {
+            return $baseDir;
         }
 
-        return $baseDir;
+        return $this->projectDir . DIRECTORY_SEPARATOR . $baseDir;
     }
 
     /**
@@ -121,9 +123,10 @@ class DefaultTemporaryFileManager implements TemporaryFileManagerInterface
      */
     public function cleanupExpired(int $maxAgeSeconds = 86400): int
     {
-        $baseDir = rtrim($this->resolvedBaseDir, DIRECTORY_SEPARATOR);
+        $baseDir = rtrim($this->resolvedBaseDir, DIRECTORY_SEPARATOR === '\\' ? '/\\' : '/');
 
-        if (!is_dir($baseDir)) {
+        // A trimmed Windows drive root (for example D:) refers to a drive's current directory.
+        if ((DIRECTORY_SEPARATOR === '\\' && preg_match('~^[A-Za-z]:$~D', $baseDir) === 1) || !is_dir($baseDir)) {
             return 0;
         }
 
@@ -161,7 +164,7 @@ class DefaultTemporaryFileManager implements TemporaryFileManagerInterface
      */
     protected function buildDirectoryPath(string $context, ?string $parentId = null): string
     {
-        $baseDir = rtrim($this->resolvedBaseDir, DIRECTORY_SEPARATOR);
+        $baseDir = rtrim($this->resolvedBaseDir, DIRECTORY_SEPARATOR === '\\' ? '/\\' : '/');
         $path = $baseDir . DIRECTORY_SEPARATOR . $context;
 
         if ($parentId !== null && $parentId !== '') {
