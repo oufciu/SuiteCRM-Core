@@ -18,6 +18,8 @@ $sugar_config['cron']['allowed_cron_users'] = [
 
 Replace both absolute paths with yours. Run the commands in `cmd.exe` as the task account, not in PowerShell. `/d` makes the SuiteCRM drive current even when the prompt starts on a different drive. Run the second command only if the first succeeds.
 
+To check that the Windows CLI reaches the scheduler without running any jobs, first append `--help` to the second command. The output should include `Run all Schedulers` and `schedulers:run`. An exit code of `0` with `Bad data passed in` is not a successful run; check that your checkout includes the Windows `bin/console` entry-point fix.
+
 ```bat
 cd /d "D:\CRM Site"
 "C:\PHP Tools\php.exe" "D:\CRM Site\bin\console" schedulers:run
