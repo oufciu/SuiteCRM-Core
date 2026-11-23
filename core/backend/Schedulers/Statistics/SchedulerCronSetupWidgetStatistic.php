@@ -91,8 +91,8 @@ class SchedulerCronSetupWidgetStatistic extends LegacyHandler implements Statist
                 'type' => ['value' => 'Windows'],
                 'desc1' => ['labelKey' => 'LBL_CRON_WINDOWS_DESC', 'useLabelAsValue' => true],
                 'desc2' => ['labelKey' => 'LBL_CRON_WINDOWS_DESC2', 'useLabelAsValue' => true],
-                'desc3' => ['value' => 'cd [path\to\suite\instance]'],
-                'desc4' => ['value' => '[path\to\php.exe] [path\to\suite\instance]\bin\console schedulers:run'],
+                'desc3' => ['value' => 'cd /d "[path\to\suite\instance]"'],
+                'desc4' => ['value' => '"[path\to\php.exe]" "[path\to\suite\instance]\bin\console" schedulers:run'],
                 'desc5' => ['labelKey' => 'LBL_CRON_WINDOWS_DESC3', 'useLabelAsValue' => true],
             ]
         ];
