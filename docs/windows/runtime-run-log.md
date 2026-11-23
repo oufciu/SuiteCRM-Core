@@ -20,12 +20,24 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\windows\runtim
 (`%LOCALAPPDATA%\SuiteCRM-Windows-Runtime`): its seven package directories
 were extracted by an earlier script revision that did not write the
 `.extracted-<sha256>` completion markers, so the current script treats them
-as unrecognized and stops (see issue __ISSUE_PREPARE__). The run continued
+as unrecognized and stops (see [issue #4](https://github.com/oufciu/SuiteCRM-Core/issues/4)). The run continued
 on a fresh root, `-RuntimeRoot "$env:LOCALAPPDATA\SuiteCRM-Windows-Runtime-v2"`,
 seeded with the already-downloaded archives. Every archive matched the
 SHA-256 pinned in `packages.json`; nothing was re-downloaded. The same
 `-RuntimeRoot` was passed to every `runtime.ps1` action, including `Check`,
 `Backend` and `Frontend`.
+
+### Commands used with the fresh root
+
+Pass the same root to every action, including any later Serve and Stop:
+
+```powershell
+$runtime = Join-Path $env:LOCALAPPDATA 'SuiteCRM-Windows-Runtime-v2'
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\windows\prepare.ps1 -RuntimeRoot $runtime
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\windows\runtime.ps1 -Action Check -RuntimeRoot $runtime
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\windows\runtime.ps1 -Action Backend -RuntimeRoot $runtime
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\windows\runtime.ps1 -Action Frontend -RuntimeRoot $runtime
+```
 
 ## Results
 
@@ -56,24 +68,30 @@ exercised in these runs.
 
 ## Captured warnings and errors
 
-None of the following failed a step; each is tracked in its own issue:
+The initial prepare attempt failed on the old root as described above.
+The following warnings did not fail the subsequent bootstrap:
 
 - The shell's initial bundle is 10.75 MB against the 9.44 MB Angular
-  budget (issue __ISSUE_BUDGET__).
+  budget ([issue #5](https://github.com/oufciu/SuiteCRM-Core/issues/5)).
 - Yarn reports `YN0086`: some peer dependencies are incorrectly met
-  (issue __ISSUE_PEER__).
+  ([issue #6](https://github.com/oufciu/SuiteCRM-Core/issues/6)).
 - Angular warns that `deployUrl` is deprecated, and CSS inlining skips
   `.custom-file-input:lang(en)~.custom-file-label` because of the `:lang`
-  pseudo-class (issue __ISSUE_BUDGET__).
+  pseudo-class ([issue #8](https://github.com/oufciu/SuiteCRM-Core/issues/8)).
 - Under Windows PowerShell 5.1, compiler progress written to stderr
   surfaces as `NativeCommandError` records when output is redirected, and a
   managed background runner reported "unknown exit status" for both
   `Backend` and `Frontend`. Rerunning the action in the foreground with
   output redirected to a file returned a definite `$LASTEXITCODE` of `0`
-  (issue __ISSUE_EXIT__).
+  ([issue #7](https://github.com/oufciu/SuiteCRM-Core/issues/7)).
 - Composer's optimized autoload dump prints pre-existing PSR-4 "Skipping"
   notices for legacy and test classes. They are informational and predate
-  these scripts.
+  these scripts. They were not investigated here and should not be assumed harmless.
+
+The managed Base B wrapper reported an unknown terminal status, but its
+captured output explicitly recorded all four child exit codes as 0. These
+are child exit-code observations, not a verified wrapper exit code. No
+causal connection between stderr records and runner status was established.
 
 ## Evidence
 
