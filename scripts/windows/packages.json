@@ -1,0 +1,59 @@
+[
+  {
+    "name": "php-8.2.36",
+    "file": "php-8.2.36-Win32-vs16-x64.zip",
+    "url": "https://downloads.php.net/~windows/releases/archives/php-8.2.36-Win32-vs16-x64.zip",
+    "checksums": "https://www.php.net/downloads.php?version=8.2&os=windows",
+    "sha256": "324a5d297a82e2d8f3748c8a30b61247cb70fa1fc54927f6ccb5d9272ee437f7",
+    "files": ["php.exe", "php8apache2_4.dll", "ext/php_curl.dll", "ext/php_fileinfo.dll", "ext/php_gd.dll", "ext/php_intl.dll", "ext/php_ldap.dll", "ext/php_mbstring.dll", "ext/php_mysqli.dll", "ext/php_openssl.dll", "ext/php_pdo_mysql.dll", "ext/php_soap.dll", "ext/php_sodium.dll", "ext/php_zip.dll"]
+  },
+  {
+    "name": "amqp",
+    "file": "php_amqp-2.2.0-8.2-ts-vs16-x64.zip",
+    "url": "https://downloads.php.net/~windows/pecl/releases/amqp/2.2.0/php_amqp-2.2.0-8.2-ts-vs16-x64.zip",
+    "release": "https://pecl.php.net/package/amqp/2.2.0/windows",
+    "sha256": "75a95fe18ed3cb3ce71d01d257c48c69fbb001185fd68df9814ec9b75cb89275",
+    "files": ["php_amqp.dll", "rabbitmq.4.dll"]
+  },
+  {
+    "name": "redis",
+    "file": "php_redis-6.3.0-8.2-ts-vs16-x64.zip",
+    "url": "https://downloads.php.net/~windows/pecl/releases/redis/6.3.0/php_redis-6.3.0-8.2-ts-vs16-x64.zip",
+    "release": "https://pecl.php.net/package/redis/6.3.0/windows",
+    "sha256": "92ddf1e09011ada452c481e0c0e3551c6979d5ea865e2042651cd88216e5c4bf",
+    "files": ["php_redis.dll"]
+  },
+  {
+    "name": "apache",
+    "file": "httpd-2.4.71-261112-Win64-VS18.zip",
+    "url": "https://www.apachelounge.com/download/VS18/binaries/httpd-2.4.71-261112-Win64-VS18.zip",
+    "checksums": "https://www.apachelounge.com/download/VS18/binaries/httpd-2.4.71-261112-Win64-VS18.zip.txt",
+    "sha256": "44961a929dff16b767b3adbcea55760a942a00239b2891dc55806be34029e1fc",
+    "files": ["Apache24/bin/httpd.exe", "Apache24/conf/mime.types", "Apache24/modules/mod_alias.so", "Apache24/modules/mod_authz_core.so", "Apache24/modules/mod_authz_host.so", "Apache24/modules/mod_dir.so", "Apache24/modules/mod_env.so", "Apache24/modules/mod_headers.so", "Apache24/modules/mod_log_config.so", "Apache24/modules/mod_mime.so", "Apache24/modules/mod_rewrite.so"]
+  },
+  {
+    "name": "mariadb",
+    "file": "mariadb-11.4.14-winx64.zip",
+    "url": "https://archive.mariadb.org/mariadb-11.4.14/winx64-packages/mariadb-11.4.14-winx64.zip",
+    "mirror": "https://atl.mirrors.knownhost.com/mariadb/mariadb-11.4.14/winx64-packages/mariadb-11.4.14-winx64.zip",
+    "checksums": "https://archive.mariadb.org/mariadb-11.4.14/winx64-packages/sha256sums.txt",
+    "sha256": "9d9b410eb7b65f6616f29d933d76ee90cf7af4ba179a2d437e0f09f5bf6650df",
+    "files": ["mariadb-11.4.14-winx64/bin/mariadbd.exe", "mariadb-11.4.14-winx64/bin/mariadb.exe", "mariadb-11.4.14-winx64/bin/mariadb-admin.exe", "mariadb-11.4.14-winx64/bin/mariadb-install-db.exe"]
+  },
+  {
+    "name": "node",
+    "file": "node-v22.23.5-win-x64.zip",
+    "url": "https://nodejs.org/dist/v22.23.5/node-v22.23.5-win-x64.zip",
+    "checksums": "https://nodejs.org/dist/v22.23.5/SHASUMS256.txt",
+    "sha256": "4a191082e9706866830379d577d2cc8a50c776fcd9436a8d061b063ed0d9a0e3",
+    "files": ["node-v22.23.5-win-x64/node.exe", "node-v22.23.5-win-x64/corepack.cmd"]
+  },
+  {
+    "name": "composer",
+    "file": "composer-2.11.2.phar",
+    "url": "https://getcomposer.org/download/2.11.2/composer.phar",
+    "checksums": "https://getcomposer.org/download/2.11.2/composer.phar.sha256sum",
+    "sha256": "dd158c0afd41d15fac89e1b4e47b5d42911fe316c3687cd5edac98319b25d028",
+    "files": ["composer.phar"]
+  }
+]

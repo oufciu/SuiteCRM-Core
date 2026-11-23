@@ -70,6 +70,11 @@ Or if you want to buy the **core team** a coffee or beer? Then consider a small 
 
 View the [Roadmap](https://suitecrm.com/roadmap/) for details on what is coming in SuiteCRM 8.
 
+### Native Windows development
+
+For an isolated local deployment on Windows 10, see the
+[Windows runtime guide](docs/windows-runtime.md).
+
 ### Contributing
 
 Contributions are welcome. Please read our [contributing guide](.github/CONTRIBUTING.md) and the [contributing code documentation](https://docs.suitecrm.com/community/contributing-code/) before you start. Bug fixes can go straight to a pull request on the `hotfix` branch. For a new feature, please open a feature proposal first and wait for a reply. Voting up issues and pull requests also helps us decide what to work on: see [how voting works](https://docs.suitecrm.com/community/raising-issues/issues-voting/).
