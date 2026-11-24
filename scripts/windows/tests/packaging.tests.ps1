@@ -63,6 +63,18 @@ Describe 'Windows packaging common functions' {
         $result = Invoke-PackagingCommand $context 'failure' $context.PowerShell @('-NoProfile', '-Command', 'exit 23')
         $result.ExitCode | Should Be 23
     }
+    It 'runs cmd shims with spaces without losing argument boundaries' {
+        $shim = Join-Path $TestDrive 'tool with spaces.cmd'
+        "@echo off`r`necho %~1`r`nexit /b %~2`r`n" | Set-Content -LiteralPath $shim -Encoding ASCII
+        $result = Invoke-PackagingCommand $context 'cmd-success' $shim @('argument with spaces', '0')
+        $result.ExitCode | Should Be 0
+        (Get-Content -LiteralPath $result.Log -Raw).Trim() | Should Be 'argument with spaces'
+    }
+    It 'preserves nonzero exit codes from cmd shims' {
+        $shim = Join-Path $TestDrive 'tool with spaces.cmd'
+        $result = Invoke-PackagingCommand $context 'cmd-failure' $shim @('value', '19')
+        $result.ExitCode | Should Be 19
+    }
     It 'reports missing executables as failure' {
         $result = Invoke-PackagingCommand $context 'missing' (Join-Path $TestDrive 'missing.exe') @()
         $result.ExitCode | Should Be 1
