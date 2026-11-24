@@ -64,6 +64,7 @@ describe('DateTimeFilterFieldComponent', () => {
     const preferences = new BehaviorSubject({
         date_format: 'MM-dd-yyyy',
         time_format: 'hh:mm aaaaaa',
+        timezone: 'UTC'
     });
     /* eslint-enable camelcase, @typescript-eslint/camelcase */
 

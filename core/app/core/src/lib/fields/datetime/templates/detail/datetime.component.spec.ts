@@ -54,6 +54,7 @@ describe('DatetimeDetailFieldComponent', () => {
     const preferences = new BehaviorSubject({
         date_format: 'yyyy-MM-dd',
         time_format: 'HH:mm:ss',
+        timezone: 'UTC'
     });
     /* eslint-enable camelcase, @typescript-eslint/camelcase */
 
@@ -91,6 +92,7 @@ describe('DatetimeDetailFieldComponent', () => {
 
         /* eslint-disable camelcase, @typescript-eslint/camelcase */
         preferences.next({
+            ...preferences.value,
             date_format: 'yyyy-MM-dd',
             time_format: 'HH:mm:ss',
         });
@@ -110,6 +112,7 @@ describe('DatetimeDetailFieldComponent', () => {
 
         /* eslint-disable camelcase, @typescript-eslint/camelcase */
         preferences.next({
+            ...preferences.value,
             date_format: 'MM.dd.yyyy',
             time_format: 'HH.mm.ss',
         });
@@ -128,6 +131,7 @@ describe('DatetimeDetailFieldComponent', () => {
 
         /* eslint-disable camelcase, @typescript-eslint/camelcase */
         preferences.next({
+            ...preferences.value,
             date_format: 'MM-dd-yyyy',
             time_format: 'hh.mm aaaaaa',
         });

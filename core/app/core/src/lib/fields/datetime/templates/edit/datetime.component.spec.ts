@@ -60,6 +60,7 @@ describe('DateTimeEditFieldComponent', () => {
     const preferences = new BehaviorSubject({
         date_format: 'MM.dd.yyyy',
         time_format: 'HH.mm.ss',
+        timezone: 'UTC'
     });
     /* eslint-enable camelcase, @typescript-eslint/camelcase */
 

@@ -26,7 +26,10 @@
 
 import {TestBed} from '@angular/core/testing';
 import {ApolloTestingModule} from 'apollo-angular/testing';
+import {BehaviorSubject} from 'rxjs';
 import {DatetimeFormatter} from './datetime-formatter.service';
+import {UserPreferenceStore} from '../../../store/user-preference/user-preference.store';
+import {UserPreferenceMockStore} from '../../../store/user-preference/user-preference.store.spec.mock';
 
 describe('DatetimeFormatterService', () => {
     let service: DatetimeFormatter;
@@ -34,11 +37,25 @@ describe('DatetimeFormatterService', () => {
     beforeEach(() => {
         TestBed.configureTestingModule({
             imports: [ApolloTestingModule],
+            providers: [{
+                provide: UserPreferenceStore,
+                useValue: new UserPreferenceMockStore(new BehaviorSubject({timezone: 'Europe/Warsaw'}))
+            }]
         });
         service = TestBed.inject(DatetimeFormatter);
     });
 
     it('should be created', () => {
         expect(service).toBeTruthy();
+    });
+
+    [
+        ['winter', '2020-11-09 10:12:14', '2020-11-09 11:12:14'],
+        ['summer', '2020-06-04 23:12:14', '2020-06-05 01:12:14']
+    ].forEach(([season, stored, local]) => {
+        it(`converts between stored UTC and the user's Warsaw timezone in ${season}`, () => {
+            expect(service.toUserFormat(stored)).toBe(local);
+            expect(service.toInternalFormat(local)).toBe(stored);
+        });
     });
 });
