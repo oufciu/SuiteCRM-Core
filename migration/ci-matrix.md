@@ -57,7 +57,17 @@ hint, not proof that every failure in those components is caused by timezone.
   1m 19.146s (not total fresh-build time).
 - Local Linux shell Karma, UTC: 6/6 passed, 0 skipped. Browser wall time
   0.071s (not total fresh-build time).
-- Hosted matrix results: pending.
+- Hosted matrix: [first run](https://github.com/oufciu/SuiteCRM-Core/actions/runs/45487468166)
+  completed all four jobs. Production builds and core 392/392 + shell 6/6 passed
+  on both operating systems. Ubuntu frontend was green (6m 37s); Windows frontend
+  was red (5m 55s) only because a CI helper test passed a literal newline through
+  Node's Windows argument handling. Its exact newline assertion is retained and
+  the fixture now supplies a printf escape instead.
+- Ubuntu backend (48s): Composer passed, standalone PHPUnit 13 tests / 39 assertions
+  / 1 existing Windows-only skip, full Codeception failed at missing AspectMock.
+- Windows backend (53s): Composer could not install because `ldap` and `sodium`
+  were not enabled. Both extensions are now explicit, along with `xmlreader`.
+  PHP test commands ran but could not load their missing vendor executables.
 
 Hosted run links and measured per-job durations will be added after the first
 matrix execution. Pending results are not a passing validation claim.

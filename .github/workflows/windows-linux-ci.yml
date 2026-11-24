@@ -48,7 +48,7 @@ jobs:
       - uses: shivammathur/setup-php@v2
         with:
           php-version: ${{ env.PHP_VERSION }}
-          extensions: ctype, curl, dom, fileinfo, gd, iconv, intl, json, mbstring, openssl, pdo, pdo_mysql, simplexml, soap, tokenizer, xml, xmlwriter, zip
+          extensions: ctype, curl, dom, fileinfo, gd, iconv, intl, json, ldap, mbstring, openssl, pdo, pdo_mysql, simplexml, soap, sodium, tokenizer, xml, xmlreader, xmlwriter, zip
           ini-values: date.timezone=${{ env.CI_TZ }}, memory_limit=-1
           coverage: none
           tools: composer:v2
@@ -62,7 +62,8 @@ jobs:
         id: composer-cache
         run: echo "dir=$(composer config cache-files-dir)" >> "$GITHUB_OUTPUT"
 
-      - uses: actions/cache@v4
+      - uses: actions/cache/restore@v4
+        id: composer-cache-restore
         with:
           path: ${{ steps.composer-cache.outputs.dir }}
           key: composer-${{ runner.os }}-php${{ env.PHP_VERSION }}-${{ hashFiles('composer.lock') }}
@@ -70,10 +71,19 @@ jobs:
             composer-${{ runner.os }}-php${{ env.PHP_VERSION }}-
 
       - name: composer install
+        id: composer-install
         continue-on-error: true
         run: |
           .github/scripts/ci-step.sh 'composer install' ci-results/composer-install.log -- \
             composer install --no-interaction --no-progress --prefer-dist
+
+      # Save successful dependency downloads even when the known PHP test
+      # bootstrap failure makes the overall job red.
+      - uses: actions/cache/save@v4
+        if: steps.composer-install.outcome == 'success' && steps.composer-cache-restore.outputs.cache-hit != 'true'
+        with:
+          path: ${{ steps.composer-cache.outputs.dir }}
+          key: ${{ steps.composer-cache-restore.outputs.cache-primary-key }}
 
       - name: Codeception unit suite
         continue-on-error: true

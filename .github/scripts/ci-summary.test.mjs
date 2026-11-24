@@ -113,7 +113,7 @@ test('ci-step.sh records the exit code and keeps the command output', () => {
     const steps = join(dir, 'steps.tsv');
     const log = join(dir, 'ok.log');
 
-    execFileSync('bash', [stepScript, 'passing step', 'ok.log', '--', 'printf', 'hello\n'], {
+    execFileSync('bash', [stepScript, 'passing step', 'ok.log', '--', 'printf', 'hello\\n'], {
         cwd: dir,
         env: {...process.env, CI_STEPS_FILE: 'steps.tsv'}
     });
