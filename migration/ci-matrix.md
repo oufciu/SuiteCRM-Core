@@ -69,5 +69,49 @@ hint, not proof that every failure in those components is caused by timezone.
   were not enabled. Both extensions are now explicit, along with `xmlreader`.
   PHP test commands ran but could not load their missing vendor executables.
 
-Hosted run links and measured per-job durations will be added after the first
-matrix execution. Pending results are not a passing validation claim.
+## Corrected hosted run
+
+[Run 45488883258](https://github.com/oufciu/SuiteCRM-Core/actions/runs/45488883258)
+tested workflow/code head `95bdbf2b6` on 2026-11-24. Both frontend jobs are green.
+Both backend jobs run successfully through installation and standalone PHPUnit,
+then remain red only for the full Codeception AspectMock bootstrap failure.
+
+| Job | Total job wall time | Result |
+|---|---:|---|
+| [Frontend Ubuntu](https://github.com/oufciu/SuiteCRM-Core/actions/runs/45488883258/job/138781536129) | 6m 08s | green; core 392/392, shell 6/6, no skips |
+| [Frontend Windows](https://github.com/oufciu/SuiteCRM-Core/actions/runs/45488883258/job/138781535691) | 6m 36s | green; core 392/392, shell 6/6, no skips |
+| [Backend Ubuntu](https://github.com/oufciu/SuiteCRM-Core/actions/runs/45488883258/job/138781536328) | 43s | red; standalone 13 tests, 39 assertions, 1 existing skip; full suite blocked |
+| [Backend Windows](https://github.com/oufciu/SuiteCRM-Core/actions/runs/45488883258/job/138781536340) | 2m 18s | red; standalone 18 tests, 56 assertions, no skips; full suite blocked |
+
+The existing Ubuntu skip is the Windows-only scheduler entry-point test.
+The different totals follow its Windows-only cases, not a CI exclusion.
+Both OSes also pass 23 CI helper tests and 2 workspace-generator tests.
+
+Measured command durations, including compilation where applicable:
+
+| Command | Ubuntu | Windows |
+|---|---:|---:|
+| Composer install | 26s | 82s |
+| Standalone PHPUnit | 1s | 5s |
+| Yarn immutable install | 24s | 44s |
+| Production core and shell | 112s | 103s |
+| Production defaultExt | 16s | 16s |
+| Karma core | 148s | 143s |
+| Karma shell | 50s | 49s |
+
+Total job wall times include setup, checkout, caches and artifact upload.
+Command durations are integer wall-clock seconds captured by `ci-step.sh`,
+not isolated browser execution times. PHP is 8.2.36, PHPUnit 10.5.63,
+Node 22.13.0, Yarn 4.10.3 and hosted Chrome 157.
+Composer and Yarn caches exist for both operating systems; Composer saves its
+downloads before the intentionally red full-suite check.
+
+The Windows system timezone, Node timezone and PHP `date.timezone` were all
+recorded as UTC. No previously observed G7 date/datetime failure occurred in
+either hosted run at UTC. Builds retain the existing initial-bundle warning
+(10.75 MB versus a 9.44 MB warning budget); no budget was relaxed.
+
+Each job published its timed summary and uploaded its named artifact. No
+Codeception JUnit report can be produced before its bootstrap is repaired;
+that missing report is explicitly reported as a failure, not an empty pass.
+Standalone PHPUnit JUnit and complete Karma logs are present.
