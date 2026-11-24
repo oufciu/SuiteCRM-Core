@@ -1,0 +1,238 @@
+name: Windows and Linux CI
+
+on:
+  push:
+    branches:
+      - runtime
+  pull_request:
+    branches:
+      - runtime
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: windows-linux-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Pinned so date and datetime assertions do not depend on the runner's zone.
+  # UTC on both OSes was selected by the user; see migration/ci-matrix.md.
+  CI_TZ: UTC
+  NODE_VERSION: '22.13.0'
+  PHP_VERSION: '8.2'
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  backend:
+    name: Backend PHP ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    env:
+      CI_STEPS_FILE: ci-results/steps.tsv
+    steps:
+      - uses: actions/checkout@v4
+
+      # Exports TZ for every later step, so CI_TZ above is the only place to change it.
+      - name: Pin the timezone
+        id: tz
+        run: .github/scripts/ci-timezone.sh "$CI_TZ" ci-results/timezone-backend.txt
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ env.PHP_VERSION }}
+          extensions: ctype, curl, dom, fileinfo, gd, iconv, intl, json, mbstring, openssl, pdo, pdo_mysql, simplexml, soap, tokenizer, xml, xmlwriter, zip
+          ini-values: date.timezone=${{ env.CI_TZ }}, memory_limit=-1
+          coverage: none
+          tools: composer:v2
+
+      - name: Record the PHP timezone
+        run: |
+          php -r 'printf("php date.timezone=%s now=%s\n", ini_get("date.timezone"), date("c"));' \
+            | tee -a ci-results/timezone-backend.txt
+
+      - name: Locate the composer cache
+        id: composer-cache
+        run: echo "dir=$(composer config cache-files-dir)" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/cache@v4
+        with:
+          path: ${{ steps.composer-cache.outputs.dir }}
+          key: composer-${{ runner.os }}-php${{ env.PHP_VERSION }}-${{ hashFiles('composer.lock') }}
+          restore-keys: |
+            composer-${{ runner.os }}-php${{ env.PHP_VERSION }}-
+
+      - name: composer install
+        continue-on-error: true
+        run: |
+          .github/scripts/ci-step.sh 'composer install' ci-results/composer-install.log -- \
+            composer install --no-interaction --no-progress --prefer-dist
+
+      - name: Codeception unit suite
+        continue-on-error: true
+        run: |
+          .github/scripts/ci-step.sh 'Codeception unit suite' \
+            ci-results/codecept-unit.log tests/_output/junit-unit.xml -- \
+            php vendor/bin/codecept run unit --no-colors --xml=junit-unit.xml
+
+      - name: Migration unit tests (standalone PHPUnit)
+        continue-on-error: true
+        run: |
+          .github/scripts/ci-step.sh 'Migration unit tests (standalone PHPUnit)' \
+            ci-results/phpunit-migration.log ci-results/junit-migration.xml -- \
+            php vendor/bin/phpunit --do-not-cache-result --bootstrap vendor/autoload.php \
+              --log-junit ci-results/junit-migration.xml \
+              tests/unit/core/legacy/SchedulerConsoleEntryPointTest.php \
+              tests/unit/core/legacy/SchedulerCronAuthorizationTest.php \
+              tests/unit/core/legacy/Statistics/SchedulerCronSetupWidgetStatisticTest.php \
+              tests/unit/core/src/Service/DefaultTemporaryFileManagerTest.php
+
+      - name: Publish the job summary
+        if: always()
+        run: |
+          node .github/scripts/ci-summary.mjs "$CI_STEPS_FILE" \
+            "Backend PHP ${{ matrix.os }}" \
+            "OS=${{ matrix.os }}" "PHP=${{ env.PHP_VERSION }}" \
+            "TZ=${{ steps.tz.outputs.timezone }}" | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: backend-${{ matrix.os }}
+          path: |
+            ci-results/
+            tests/_output/
+          if-no-files-found: warn
+
+      - name: Fail if any step failed
+        if: always()
+        run: node .github/scripts/ci-gate.mjs "$CI_STEPS_FILE"
+
+  frontend:
+    name: Frontend ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    env:
+      CI_STEPS_FILE: ci-results/steps.tsv
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Pin the timezone
+        id: tz
+        run: .github/scripts/ci-timezone.sh "$CI_TZ" ci-results/timezone-frontend.txt
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Enable the pinned Yarn
+        run: |
+          corepack enable
+          node --version
+          corepack yarn --version
+
+      - name: Locate the Yarn cache
+        id: yarn-cache
+        run: echo "dir=$(corepack yarn config get cacheFolder)" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/cache@v4
+        with:
+          path: ${{ steps.yarn-cache.outputs.dir }}
+          key: yarn-${{ runner.os }}-${{ hashFiles('yarn.lock', '.yarnrc.yml') }}
+          restore-keys: |
+            yarn-${{ runner.os }}-
+
+      - name: Record the Node timezone
+        run: |
+          node -e 'console.log("node timeZone=" + Intl.DateTimeFormat().resolvedOptions().timeZone + " now=" + new Date().toString())' \
+            | tee -a ci-results/timezone-frontend.txt
+
+      - name: Select the Chrome binary
+        run: |
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            chrome='C:\Program Files\Google\Chrome\Application\chrome.exe'
+          else
+            chrome=/usr/bin/google-chrome
+          fi
+          if [ ! -f "$chrome" ]; then
+            echo "Chrome not found at $chrome" >&2
+            exit 1
+          fi
+          echo "CHROME_BIN=$chrome" >> "$GITHUB_ENV"
+
+      - name: yarn install
+        continue-on-error: true
+        run: |
+          .github/scripts/ci-step.sh 'yarn install --immutable' ci-results/yarn-install.log -- \
+            corepack yarn install --immutable
+
+      - name: Generate the Angular workspace
+        continue-on-error: true
+        run: |
+          .github/scripts/ci-step.sh 'yarn merge-angular-json' ci-results/merge-angular-json.log -- \
+            corepack yarn merge-angular-json
+
+      - name: Workspace generator tests
+        continue-on-error: true
+        run: |
+          .github/scripts/ci-step.sh 'Workspace generator tests' ci-results/merge-angular-json-test.log -- \
+            node --test core/yarn/plugins/merge-angular-json.test.cjs
+
+      - name: CI helper tests
+        continue-on-error: true
+        run: |
+          .github/scripts/ci-step.sh 'CI helper script tests' ci-results/ci-helper-test.log -- \
+            node --test .github/scripts/ci-summary.test.mjs
+
+      - name: Production build (core and shell)
+        continue-on-error: true
+        run: |
+          .github/scripts/ci-step.sh 'Production build (core and shell)' ci-results/build.log -- \
+            corepack yarn build
+
+      - name: Production build (defaultExt)
+        continue-on-error: true
+        run: |
+          .github/scripts/ci-step.sh 'Production build (defaultExt)' ci-results/build-extension.log -- \
+            corepack yarn build:extension defaultExt
+
+      - name: Karma core
+        continue-on-error: true
+        run: |
+          .github/scripts/ci-step.sh 'Karma core' ci-results/karma-core.log -- \
+            corepack yarn ng test core --watch=false --browsers=ChromeHeadless
+
+      - name: Karma shell
+        continue-on-error: true
+        run: |
+          .github/scripts/ci-step.sh 'Karma shell' ci-results/karma-shell.log -- \
+            corepack yarn ng test shell --watch=false --browsers=ChromeHeadless
+
+      - name: Publish the job summary
+        if: always()
+        run: |
+          node .github/scripts/ci-summary.mjs "$CI_STEPS_FILE" \
+            "Frontend ${{ matrix.os }}" \
+            "OS=${{ matrix.os }}" "Node=${{ env.NODE_VERSION }}" \
+            "TZ=${{ steps.tz.outputs.timezone }}" | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: frontend-${{ matrix.os }}
+          path: ci-results/
+          if-no-files-found: warn
+
+      - name: Fail if any step failed
+        if: always()
+        run: node .github/scripts/ci-gate.mjs "$CI_STEPS_FILE"
