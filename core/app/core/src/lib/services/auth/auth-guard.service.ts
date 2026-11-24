@@ -26,15 +26,14 @@
 
 import {Injectable} from '@angular/core';
 import {ActivatedRouteSnapshot, Router, RouterStateSnapshot, UrlTree} from '@angular/router';
-import {forkJoin, Observable, of} from 'rxjs';
-import {catchError, filter, map, take, tap} from 'rxjs/operators';
-import {AuthService, SessionStatus} from './auth.service';
+import {Observable, of} from 'rxjs';
+import {catchError, map, switchMap, take} from 'rxjs/operators';
+import {AuthService} from './auth.service';
 import {Process} from '../process/process.service';
 import {AsyncActionInput, AsyncActionService} from '../process/processes/async-action/async-action';
 import {AppStateStore} from '../../store/app-state/app-state.store';
 import {RouteConverter, RouteInfo} from '../navigation/route-converter/route-converter.service';
 import {isEmptyString} from '../../common/utils/value-utils';
-import {emptyObject} from '../../common/utils/object-utils';
 import {LanguageStore} from '../../store/language/language.store';
 import {NotificationStore} from '../../store/notification/notification.store';
 
@@ -59,42 +58,28 @@ export class AuthGuard  {
     }
 
     /**
-     * Authorize user session and acl together in conjunction
+     * Confirm the user session before requesting protected ACL data.
      *
      * @returns {object} Observable<boolean | UrlTree> | Promise<boolean | UrlTree> | boolean | UrlTree
      * @param {ActivatedRouteSnapshot} route information about the current route
      * @param snapshot
      */
     protected authorizeUser(route: ActivatedRouteSnapshot, snapshot: RouterStateSnapshot): Observable<boolean | UrlTree> | Promise<boolean | UrlTree> | boolean | UrlTree {
-        // Note: this session and acl are not always booleans
-        return forkJoin([
-            this.authService.authorizeUserSession(route, snapshot),
-            this.authorizeUserACL(route)
-        ]).pipe(map(([session, acl]: any) => {
-
-
-
-                if (session instanceof UrlTree) {
-                    return session;
+        return this.authService.authorizeUserSession(route, snapshot).pipe(
+            switchMap(session => {
+                if (session !== true) {
+                    return of(session);
                 }
-                if (acl instanceof UrlTree) {
-                    return acl;
-                }
-                if (session && acl) {
-                    const isLoginWizardCompleted = this.appState.getLoginWizardComplete();
 
-                    if (!isLoginWizardCompleted && snapshot.url !== '/users/Wizard') {
+                return this.authorizeUserACL(route).pipe(map(acl => {
+                    if (acl === true && !this.appState.getLoginWizardComplete() && snapshot.url !== '/users/Wizard') {
                         return this.router.parseUrl('/users/Wizard');
                     }
 
-                    return true;
-                }
-
-                return false;
-            }
-        ));
-
-
+                    return acl;
+                }));
+            })
+        );
     }
 
     /**
