@@ -63,6 +63,19 @@ Describe 'Windows packaging common functions' {
         $result = Invoke-PackagingCommand $context 'failure' $context.PowerShell @('-NoProfile', '-Command', 'exit 23')
         $result.ExitCode | Should Be 23
     }
+    It 'bounds a native helper and terminates only its launched process' {
+        $pidPath = Join-Path $TestDrive 'timed-child-pid.txt'
+        $result = Invoke-PackagingCommand $context 'timeout' $context.PowerShell @('-NoProfile', '-Command', "`$PID | Set-Content -LiteralPath '$pidPath'; Start-Sleep -Seconds 30") -TimeoutSeconds 2
+        $result.ExitCode | Should Be 1
+        $result.Seconds | Should BeLessThan 10
+        $childId = [int](Get-Content -LiteralPath $pidPath)
+        (Get-Process -Id $childId -ErrorAction SilentlyContinue) | Should BeNullOrEmpty
+        (Get-Content -LiteralPath (Join-Path $context.Reports 'timeout.stderr.log') -Raw) | Should Match 'exceeded 2 seconds'
+    }
+    It 'preserves a bounded native helper exit code' {
+        $result = Invoke-PackagingCommand $context 'bounded-failure' $context.PowerShell @('-NoProfile', '-Command', 'exit 23') -TimeoutSeconds 5
+        $result.ExitCode | Should Be 23
+    }
     It 'runs cmd shims with spaces without losing argument boundaries' {
         $shim = Join-Path $TestDrive 'tool with spaces.cmd'
         "@echo off`r`necho %~1`r`nexit /b %~2`r`n" | Set-Content -LiteralPath $shim -Encoding ASCII
@@ -138,6 +151,18 @@ Describe 'Messenger supervision status' {
     $statePath = Join-Path $context.Instance 'messenger-state.json'
     BeforeEach {
         @{MonitorPid=456;WorkerPid=789} | ConvertTo-Json | Set-Content -LiteralPath $statePath
+        Remove-Item -LiteralPath (Join-Path $context.Instance 'messenger-stop-requested') -ErrorAction SilentlyContinue
+    }
+    It 'does not restart the launcher after a requested Messenger stop' {
+        Set-Content -LiteralPath (Join-Path $context.Instance 'messenger-stop-requested') -Value 'stop'
+        Get-StartupMonitorState $context ([pscustomobject]@{HasExited=$true}) | Should Be 'Stopped'
+    }
+    It 'still fails the launcher after an unexpected Messenger exit' {
+        { Get-StartupMonitorState $context ([pscustomobject]@{HasExited=$true}) } | Should Throw 'Messenger supervisor exited'
+    }
+    It 'waits for a live Messenger monitor even during a requested stop' {
+        Set-Content -LiteralPath (Join-Path $context.Instance 'messenger-stop-requested') -Value 'stop'
+        Get-StartupMonitorState $context ([pscustomobject]@{HasExited=$false}) | Should Be 'Running'
     }
     It 'ignores a stale state record when the supervisor is gone' {
         Mock Get-CimInstance { $null }
@@ -156,6 +181,77 @@ Describe 'Messenger supervision status' {
             [pscustomobject]@{ExecutablePath=$context.Php;CommandLine=((Join-Path $context.Repo 'bin\console') + ' messenger:consume internal-async')}
         }
         Get-MessengerStatus $context | Should Be 'Running'
+    }
+    It 'reports stopping only after validating the supervisor and worker' {
+        Set-Content -LiteralPath (Join-Path $context.Instance 'messenger-stop-requested') -Value 'stop'
+        Mock Get-CimInstance {
+            param($Filter)
+            if ($Filter -eq 'ProcessId=456') {
+                return [pscustomobject]@{ExecutablePath=$context.PowerShell;CommandLine=(Join-Path $context.Repo 'scripts\windows\messenger-worker.ps1')}
+            }
+            [pscustomobject]@{ExecutablePath=$context.Php;CommandLine=((Join-Path $context.Repo 'bin\console') + ' messenger:consume internal-async')}
+        }
+        Get-MessengerStatus $context | Should Be 'Stopping'
+    }
+    It 'rechecks an exiting worker instead of throwing during forced shutdown' {
+        Set-Content -LiteralPath (Join-Path $context.Instance 'messenger-stop-requested') -Value 'stop'
+        $script:workerQueries = 0
+        Mock Start-Sleep {}
+        Mock Get-CimInstance {
+            param($Filter)
+            if ($Filter -eq 'ProcessId=456') {
+                return [pscustomobject]@{ExecutablePath=$context.PowerShell;CommandLine=(Join-Path $context.Repo 'scripts\windows\messenger-worker.ps1')}
+            }
+            $script:workerQueries++
+            if ($script:workerQueries -eq 1) { return [pscustomobject]@{ExecutablePath=$null;CommandLine=$null} }
+            $null
+        }
+        Get-MessengerStatus $context | Should Be 'Stopping'
+        $script:workerQueries | Should Be 2
+    }
+    It 'still rejects a foreign worker with a stop request after bounded rechecks' {
+        Set-Content -LiteralPath (Join-Path $context.Instance 'messenger-stop-requested') -Value 'stop'
+        $script:workerQueries = 0
+        Mock Start-Sleep {}
+        Mock Get-CimInstance {
+            param($Filter)
+            if ($Filter -eq 'ProcessId=456') {
+                return [pscustomobject]@{ExecutablePath=$context.PowerShell;CommandLine=(Join-Path $context.Repo 'scripts\windows\messenger-worker.ps1')}
+            }
+            $script:workerQueries++
+            [pscustomobject]@{ExecutablePath=$context.Php;CommandLine='unrelated.php'}
+        }
+        { Get-MessengerStatus $context } | Should Throw 'Messenger worker ownership mismatch.'
+        $script:workerQueries | Should Be 11
+    }
+    It 'does not retry or accept a foreign worker without a stop request' {
+        Mock Get-CimInstance {
+            param($Filter)
+            if ($Filter -eq 'ProcessId=456') {
+                return [pscustomobject]@{ExecutablePath=$context.PowerShell;CommandLine=(Join-Path $context.Repo 'scripts\windows\messenger-worker.ps1')}
+            }
+            [pscustomobject]@{ExecutablePath=$context.Php;CommandLine='unrelated.php'}
+        }
+        Mock Start-Sleep { throw 'Unexpected retry without a stop request' }
+        { Get-MessengerStatus $context } | Should Throw 'Messenger worker ownership mismatch.'
+        Assert-MockCalled Start-Sleep -Times 0 -Exactly -Scope It
+    }
+    It 'rereads state removal while an exiting worker is being rechecked' {
+        Set-Content -LiteralPath (Join-Path $context.Instance 'messenger-stop-requested') -Value 'stop'
+        Mock Start-Sleep { Remove-Item -LiteralPath $statePath }
+        Mock Get-CimInstance {
+            param($Filter)
+            if ($Filter -eq 'ProcessId=456') {
+                return [pscustomobject]@{ExecutablePath=$context.PowerShell;CommandLine=(Join-Path $context.Repo 'scripts\windows\messenger-worker.ps1')}
+            }
+            [pscustomobject]@{ExecutablePath=$context.Php;CommandLine=$null}
+        }
+        Get-MessengerStatus $context | Should Be 'Stopped'
+    }
+    It 'still rejects a foreign supervisor even with a stop request' {
+        Set-Content -LiteralPath (Join-Path $context.Instance 'messenger-stop-requested') -Value 'stop'
+        Mock Get-CimInstance { [pscustomobject]@{ExecutablePath=$context.PowerShell;CommandLine='unrelated.ps1'} }
+        { Get-MessengerStatus $context } | Should Throw 'Messenger state refers to a foreign process'
     }
     It 'marks a missing required worker as partial rather than green' {
         Mock Get-MessengerStatus { 'Stopped' }

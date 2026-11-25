@@ -33,6 +33,8 @@ not tracked. Alternate legacy themes are not built by this entry point.
 
 The build does not start a database, install the application, install global
 tools, alter the machine execution policy, or replace dependency locks.
+On an already installed checkout, start its configured database before rebuilding:
+the final `scrm:extension-asset-install` step needs it.
 
 ## Tests and reports
 
@@ -132,9 +134,17 @@ each exit with5s backoff. Each child is bounded to300s/256MiB. Doctrine is the
 default transport; no Redis/RabbitMQ server is started. Changing the app's
 transport DSN is a separate operator action.
 
-`run.ps1 Status` reports a missing enabled worker as Partial, not green. Stop
-requests Messenger shutdown **before** stopping the database. The worker uses
+`run.ps1 Status` reports a missing enabled worker as Partial, not green. It
+reports Messenger as Stopping while its owned worker exits. During a requested
+stop, an ownership mismatch is rechecked at most10 times,100ms apart, to tolerate
+CIM's transient view of an exiting process. A persistent mismatch still fails
+closed; a stop request never makes a foreign process an owned worker.
+The generated launcher treats a requested Messenger stop as a clean exit, not
+a crash to restart. After updating launcher code, unregister and re-register
+existing startup registrations to regenerate their launcher.
+Stop requests Messenger shutdown **before** stopping the database. The worker uses
 Symfony's cache-based `messenger:stop-workers` rather than POSIX signals.
+The cache-based stop helper is bounded to10s, then the worker gets30s to exit.
 After30s it terminates only its owned child; in-flight work then follows the
 configured transport's redelivery policy. Do not use this timeout for jobs that
 cannot safely retry. State reads/writes use a small exclusive file lock to avoid

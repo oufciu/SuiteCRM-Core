@@ -75,6 +75,7 @@ $code = 1
 try {
     $runtimeLine = ((Get-RuntimeArguments $context 'Serve') | ForEach-Object { ConvertTo-WindowsArgument $_ }) -join ' '
     $runtime = Start-Process -FilePath $context.PowerShell -ArgumentList $runtimeLine -WorkingDirectory $context.Repo -WindowStyle Hidden -PassThru -RedirectStandardOutput (Join-Path $context.Reports "$name.stdout.log") -RedirectStandardError (Join-Path $context.Reports "$name.stderr.log")
+    $null = $runtime.Handle
     if ($registration.WithMessenger) {
         $workerScript = Join-Path $registration.Repo 'scripts\windows\messenger-worker.ps1'
         $workerArguments = @('-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', $workerScript, '-RuntimeRoot', $context.Root, '-HttpPort', [string]$context.HttpPort, '-DbPort', [string]$context.DbPort)
@@ -82,9 +83,9 @@ try {
         $monitor = Start-Process -FilePath $context.PowerShell -ArgumentList $line -WorkingDirectory $context.Repo -WindowStyle Hidden -PassThru -RedirectStandardOutput (Join-Path $context.Reports "$name-worker.stdout.log") -RedirectStandardError (Join-Path $context.Reports "$name-worker.stderr.log")
     }
     while (-not $runtime.WaitForExit(1000)) {
-        if ($monitor -and $monitor.HasExited) { throw 'Messenger supervisor exited; restarting the whole owned runtime.' }
+        if ((Get-StartupMonitorState $context $monitor) -eq 'Stopped') { $code = 0; break }
     }
-    $code = $runtime.ExitCode
+    if ($runtime.HasExited) { $code = $runtime.ExitCode }
 } catch {
     [IO.File]::AppendAllText((Join-Path $context.Reports 'startup-supervisor.log'), "$(Get-Date -Format o) $($_.Exception.Message)`r`n")
 } finally {

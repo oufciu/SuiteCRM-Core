@@ -57,7 +57,7 @@ function Write-PackagingJUnit {
 }
 
 function Invoke-PackagingCommand {
-    param($Context, [string] $Name, [string] $Program, [string[]] $Arguments)
+    param($Context, [string] $Name, [string] $Program, [string[]] $Arguments, [int] $TimeoutSeconds = 0)
     $null = New-Item -ItemType Directory -Path $Context.Reports -Force
     $log = Join-Path $Context.Reports "$Name.stdout.log"
     $errorLog = Join-Path $Context.Reports "$Name.stderr.log"
@@ -71,7 +71,18 @@ function Invoke-PackagingCommand {
             $process = Start-Process -FilePath $env:ComSpec -ArgumentList @('/d', '/s', '/c', $line) -WorkingDirectory $Context.Repo -Wait -PassThru -NoNewWindow -RedirectStandardOutput $log -RedirectStandardError $errorLog
         } else {
             $line = ($Arguments | ForEach-Object { ConvertTo-WindowsArgument $_ }) -join ' '
-            $process = Start-Process -FilePath $Program -ArgumentList $line -WorkingDirectory $Context.Repo -Wait -PassThru -NoNewWindow -RedirectStandardOutput $log -RedirectStandardError $errorLog
+            if ($TimeoutSeconds -gt 0) {
+                $process = Start-Process -FilePath $Program -ArgumentList $line -WorkingDirectory $Context.Repo -PassThru -NoNewWindow -RedirectStandardOutput $log -RedirectStandardError $errorLog
+                # PowerShell 5.1 can lose ExitCode after an asynchronous child exits unless its handle is retained.
+                $null = $process.Handle
+                if (-not $process.WaitForExit($TimeoutSeconds * 1000)) {
+                    $process.Kill()
+                    $process.WaitForExit()
+                    throw "Command exceeded $TimeoutSeconds seconds; terminated its owned child."
+                }
+            } else {
+                $process = Start-Process -FilePath $Program -ArgumentList $line -WorkingDirectory $Context.Repo -Wait -PassThru -NoNewWindow -RedirectStandardOutput $log -RedirectStandardError $errorLog
+            }
         }
         $code = $process.ExitCode
     } catch { [IO.File]::AppendAllText($errorLog, $_.Exception.Message); $code = 1 }
@@ -174,26 +185,37 @@ function Open-MessengerStateLock($Context) {
 
 function Get-MessengerStatus($Context) {
     $statePath = Join-Path $Context.Instance 'messenger-state.json'
-    if (-not (Test-Path -LiteralPath $statePath)) { return 'Stopped' }
-    $stateLock = Open-MessengerStateLock $Context
-    try {
+    $stopPath = Join-Path $Context.Instance 'messenger-stop-requested'
+    for ($attempt = 0; ; $attempt++) {
         if (-not (Test-Path -LiteralPath $statePath)) { return 'Stopped' }
-        $state = Get-Content -LiteralPath $statePath -Raw | ConvertFrom-Json
-    } finally { $stateLock.Dispose() }
-    $monitor = Get-CimInstance Win32_Process -Filter "ProcessId=$($state.MonitorPid)"
-    if (-not $monitor) { return 'Stopped' }
-    $script = Join-Path $Context.Repo 'scripts\windows\messenger-worker.ps1'
-    if ($monitor.ExecutablePath -ne $Context.PowerShell -or $monitor.CommandLine.IndexOf($script, [StringComparison]::OrdinalIgnoreCase) -lt 0) {
-        throw 'Messenger state refers to a foreign process; no action taken.'
+        $stateLock = Open-MessengerStateLock $Context
+        try {
+            if (-not (Test-Path -LiteralPath $statePath)) { return 'Stopped' }
+            $state = Get-Content -LiteralPath $statePath -Raw | ConvertFrom-Json
+        } finally { $stateLock.Dispose() }
+        $monitor = Get-CimInstance Win32_Process -Filter "ProcessId=$($state.MonitorPid)"
+        if (-not $monitor) { return 'Stopped' }
+        $script = Join-Path $Context.Repo 'scripts\windows\messenger-worker.ps1'
+        if ($monitor.ExecutablePath -ne $Context.PowerShell -or ([string]$monitor.CommandLine).IndexOf($script, [StringComparison]::OrdinalIgnoreCase) -lt 0) {
+            throw 'Messenger state refers to a foreign process; no action taken.'
+        }
+        $stopping = Test-Path -LiteralPath $stopPath
+        $idleState = if ($stopping) { 'Stopping' } else { 'Starting' }
+        if (-not $state.WorkerPid) { return $idleState }
+        $worker = Get-CimInstance Win32_Process -Filter "ProcessId=$($state.WorkerPid)"
+        if (-not $worker) { return $idleState }
+        $console = Join-Path $Context.Repo 'bin\console'
+        if ($worker.ExecutablePath -eq $Context.Php -and
+            ([string]$worker.CommandLine).IndexOf($console, [StringComparison]::OrdinalIgnoreCase) -ge 0 -and
+            $worker.CommandLine -match 'messenger:consume') {
+            if ($stopping) { return 'Stopping' }
+            return 'Running'
+        }
+        # CIM can briefly expose an exiting worker without its ownership fields.
+        # Only a requested stop permits bounded rechecks; a foreign PID is never accepted.
+        if (-not $stopping -or $attempt -ge 10) { throw 'Messenger worker ownership mismatch.' }
+        Start-Sleep -Milliseconds 100
     }
-    if (-not $state.WorkerPid) { return 'Starting' }
-    $worker = Get-CimInstance Win32_Process -Filter "ProcessId=$($state.WorkerPid)"
-    if (-not $worker) { return 'Starting' }
-    $console = Join-Path $Context.Repo 'bin\console'
-    if ($worker.ExecutablePath -ne $Context.Php -or
-        $worker.CommandLine.IndexOf($console, [StringComparison]::OrdinalIgnoreCase) -lt 0 -or
-        $worker.CommandLine -notmatch 'messenger:consume') { throw 'Messenger worker ownership mismatch.' }
-    'Running'
 }
 
 function Get-PackagingStatus($Context, $Registration) {
@@ -205,4 +227,10 @@ function Get-PackagingStatus($Context, $Registration) {
         elseif ($status.State -eq 'Stopped' -and $messenger -ne 'Stopped') { $status.State = 'Partial' }
     }
     $status
+}
+
+function Get-StartupMonitorState($Context, $Monitor) {
+    if (-not $Monitor -or -not $Monitor.HasExited) { return 'Running' }
+    if (Test-Path -LiteralPath (Join-Path $Context.Instance 'messenger-stop-requested')) { return 'Stopped' }
+    throw 'Messenger supervisor exited; restarting the whole owned runtime.'
 }

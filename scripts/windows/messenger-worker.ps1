@@ -65,7 +65,7 @@ try {
 } finally {
     if ($worker -and -not $worker.HasExited) {
         $null = Get-MessengerStatus $context
-        $result = Invoke-PackagingCommand $context 'messenger-stop' $context.Php @((Join-Path $context.Repo 'bin\console'), 'messenger:stop-workers', '--no-interaction', '--no-ansi')
+        $result = Invoke-PackagingCommand $context 'messenger-stop' $context.Php (Get-PhpCliArguments @((Join-Path $context.Repo 'bin\console'), 'messenger:stop-workers', '--no-interaction', '--no-ansi')) -TimeoutSeconds 10
         if (-not $worker.WaitForExit(30000)) {
             Write-WorkerLog 'Graceful stop exceeded30s; terminating owned worker, transport redelivery policy applies.'
             $null = Get-MessengerStatus $context
