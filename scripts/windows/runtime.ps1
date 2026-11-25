@@ -7,7 +7,8 @@ param(
     [ValidateRange(1024, 65535)]
     [int] $HttpPort = 18080,
     [ValidateRange(1024, 65535)]
-    [int] $DbPort = 13306
+    [int] $DbPort = 13306,
+    [switch] $WarmupProdCache
 )
 
 $ErrorActionPreference = 'Stop'
@@ -282,6 +283,10 @@ GRANT ALL ON suitecrm_windows.* TO 'suitecrm_windows'@'127.0.0.1';
 "@ | & $dbClient $clientArg --batch
                 if ($LASTEXITCODE -ne 0) { throw 'Could not create the dedicated database and application user.' }
                 Write-Config $initialized "initialized`n"
+            }
+            if ($WarmupProdCache) {
+                . (Join-Path $PSScriptRoot 'packaging-common.ps1')
+                Invoke-ProductionCacheWarmup (Get-PackagingContext $root $HttpPort $DbPort)
             }
             $apacheProcess = Start-Process -FilePath $apache -ArgumentList "-X -f `"$apacheConfig`"" -PassThru -NoNewWindow
             $deadline = [DateTime]::UtcNow.AddSeconds(45)

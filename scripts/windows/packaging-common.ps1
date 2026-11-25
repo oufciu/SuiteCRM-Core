@@ -95,6 +95,19 @@ function Get-RuntimeArguments($Context, [string] $Action) {
     @('-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', $Context.Runtime,
       '-Action', $Action, '-RuntimeRoot', $Context.Root,
       '-HttpPort', [string]$Context.HttpPort, '-DbPort', [string]$Context.DbPort)
+    if ($Action -eq 'Serve') { '-WarmupProdCache' }
+}
+
+function Invoke-ProductionCacheWarmup($Context) {
+    # A fresh checkout has no installed application/database yet.
+    if (-not (Test-Path -LiteralPath (Join-Path $Context.Repo 'public\legacy\config.php'))) { return }
+    $saved = Get-PackagingEnvironmentSnapshot
+    try {
+        Set-PackagingEnvironment $Context
+        $arguments = Get-PhpCliArguments @('-d', 'max_execution_time=0', 'bin/console', 'cache:warmup', '--env=prod', '--no-debug', '--no-interaction')
+        $result = Invoke-PackagingCommand $Context 'startup-cache-warmup' $Context.Php $arguments -TimeoutSeconds 300
+        if ($result.ExitCode -ne 0) { throw 'Production cache warmup failed; Apache was not started. Inspect startup-cache-warmup logs.' }
+    } finally { Restore-PackagingEnvironment $saved }
 }
 
 function Get-PhpCliArguments([string[]] $Arguments) {

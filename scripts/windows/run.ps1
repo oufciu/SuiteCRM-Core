@@ -4,7 +4,7 @@ param(
     [string] $RuntimeRoot = (Join-Path $env:LOCALAPPDATA 'SuiteCRM-Windows-Runtime'),
     [ValidateRange(1024, 65535)][int] $HttpPort = 18080,
     [ValidateRange(1024, 65535)][int] $DbPort = 13306,
-    [ValidateRange(1, 600)][int] $WaitSeconds = 120
+    [ValidateRange(1, 600)][int] $WaitSeconds = 600
 )
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'packaging-common.ps1')

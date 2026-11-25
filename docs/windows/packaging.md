@@ -89,7 +89,13 @@ registration metadata are saved under
 Launcher logs are in the instance's `logs` directory.
 
 The launcher supervises `runtime.ps1 Serve`, which starts MariaDB and then Apache
-with loopback-only listeners. Task settings ignore duplicate runs, allow battery
+with loopback-only listeners. Packaging startup passes `-WarmupProdCache`:
+after MariaDB is ready and before Apache starts, installed checkouts run
+`bin/console cache:warmup --env=prod --no-debug --no-interaction` as the same
+account, with a300s wall-clock limit. A failure leaves Apache unstarted and
+stops the owned database. Fresh uninstalled checkouts skip warmup.
+Logs use the `startup-cache-warmup` prefix under `tests/_output/windows`.
+Task settings ignore duplicate runs, allow battery
 operation, have no execution time limit, and retry a failed launcher up to three
 times at one-minute intervals. A listener owned by another executable/config
 pair is rejected. Nothing touches another checkout's task or database.
@@ -100,7 +106,8 @@ using that instance's private credentials file and the selected ports.
 No administrator is created by these wrapper scripts.
 
 `run.ps1 -Action Start` starts the registered task/service and waits for the
-owned listeners (and an enabled worker). Without a registration, it runs Serve
+owned listeners (and an enabled worker), up to600s by default to include cold
+warmup. Without a registration, it runs Serve
 in the current terminal instead. Keep that terminal open.
 
 `run.ps1 -Action Status` prints ports, PIDs and Messenger state. Its exit codes

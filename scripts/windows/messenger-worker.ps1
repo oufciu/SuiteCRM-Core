@@ -38,7 +38,7 @@ function Write-WorkerLog([string] $Text) {
 try {
     if (Test-Path -LiteralPath $stopPath) { Remove-Item -LiteralPath $stopPath }
     Write-WorkerState 0
-    $deadline = [DateTime]::UtcNow.AddSeconds(120)
+    $deadline = [DateTime]::UtcNow.AddSeconds(600)
     do {
         if (Test-Path -LiteralPath $stopPath) { return }
         if ((Get-InstanceStatus $context).State -eq 'Running') { break }

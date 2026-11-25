@@ -37,6 +37,8 @@ Describe 'Windows packaging common functions' {
         ($arguments -contains '18086') | Should Be $true
         ($arguments -contains '13312') | Should Be $true
         ($arguments -contains 'Serve') | Should Be $true
+        ($arguments -contains '-WarmupProdCache') | Should Be $true
+        ((Get-RuntimeArguments $context 'Stop') -contains '-WarmupProdCache') | Should Be $false
     }
     It 'quotes spaces, embedded quotes, and trailing backslashes' {
         ConvertTo-WindowsArgument 'a b' | Should Be '"a b"'
@@ -115,6 +117,36 @@ Describe 'Windows packaging common functions' {
     It 'rejects a replaced task rather than starting or deleting it' {
         Mock Get-ScheduledTask { [pscustomobject]@{Actions=[pscustomobject]@{Execute='foreign.exe';Arguments=''}} }
         { Get-OwnedStartupTask $context } | Should Throw
+    }
+}
+
+Describe 'Production startup cache warmup' {
+    $context = Get-PackagingContext (Join-Path $TestDrive 'warmup runtime') 18088 13314
+    $context.Repo = Join-Path $TestDrive 'installed checkout'
+    $config = Join-Path $context.Repo 'public\legacy\config.php'
+    BeforeEach {
+        $null = New-Item -ItemType Directory (Split-Path $config) -Force
+        'fixture' | Set-Content -LiteralPath $config
+        Mock Invoke-PackagingCommand { [pscustomobject]@{ExitCode=0} }
+    }
+    It 'uses prod no-debug warmup with a bounded native helper' {
+        Invoke-ProductionCacheWarmup $context
+        Assert-MockCalled Invoke-PackagingCommand -Times 1 -Exactly -Scope It -ParameterFilter {
+            $Name -eq 'startup-cache-warmup' -and $Program -eq $context.Php -and $TimeoutSeconds -eq 300 -and
+            ($Arguments -contains 'cache:warmup') -and ($Arguments -contains '--env=prod') -and
+            ($Arguments -contains '--no-debug') -and ($Arguments -contains 'max_execution_time=0')
+        }
+    }
+    It 'skips uninstalled checkouts' {
+        Remove-Item -LiteralPath $config
+        Invoke-ProductionCacheWarmup $context
+        Assert-MockCalled Invoke-PackagingCommand -Times 0 -Exactly -Scope It
+    }
+    It 'fails closed and restores environment when warmup fails' {
+        $before = $env:APP_ENV
+        Mock Invoke-PackagingCommand { [pscustomobject]@{ExitCode=23} }
+        { Invoke-ProductionCacheWarmup $context } | Should Throw 'Apache was not started'
+        $env:APP_ENV | Should Be $before
     }
 }
 
