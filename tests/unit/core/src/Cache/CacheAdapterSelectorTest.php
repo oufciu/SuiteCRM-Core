@@ -43,14 +43,16 @@ use Symfony\Component\DependencyInjection\Loader\PhpFileLoader;
  */
 class CacheAdapterSelectorTest extends TestCase
 {
-    private const KEY = 'isWritable.a:3:{i:0;s:4:"Call";i:1;s:4:"name";i:2;a:0:{}}';
-
     private string $directory;
+
+    private string $key;
 
     protected function setUp(): void
     {
         $this->directory = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'scrm-cache-test-' . bin2hex(random_bytes(6));
         mkdir($this->directory);
+        // Encoded like PropertyInfoCacheExtractor keys: raw serialized arguments contain PSR-6 reserved characters.
+        $this->key = rawurlencode('isWritable.' . serialize(['Call', 'name', []]));
     }
 
     protected function tearDown(): void
@@ -100,7 +102,7 @@ class CacheAdapterSelectorTest extends TestCase
             // The marshaller reports a truncated payload as a PHP warning before treating it as a miss.
             set_error_handler(static fn (int $type): bool => $type === E_WARNING || $type === E_NOTICE);
             try {
-                $item = (new FilesystemAdapter('ns', 0, $this->directory))->getItem(self::KEY);
+                $item = (new FilesystemAdapter('ns', 0, $this->directory))->getItem($this->key);
             } finally {
                 restore_error_handler();
             }
@@ -109,7 +111,7 @@ class CacheAdapterSelectorTest extends TestCase
         }
 
         file_put_contents($file, $complete);
-        $item = (new FilesystemAdapter('ns', 0, $this->directory))->getItem(self::KEY);
+        $item = (new FilesystemAdapter('ns', 0, $this->directory))->getItem($this->key);
         self::assertTrue($item->isHit());
         self::assertSame($value, $item->get());
     }
@@ -128,7 +130,7 @@ class CacheAdapterSelectorTest extends TestCase
         $complete = file_get_contents($file);
         file_put_contents($file, '<?php file_put_contents(__FILE__, ' . var_export($complete, true) . '); return 1;');
 
-        $item = (new PhpFilesAdapter('ns', 0, $this->directory, true))->getItem(self::KEY);
+        $item = (new PhpFilesAdapter('ns', 0, $this->directory, true))->getItem($this->key);
 
         self::assertSame(
             [PHP_INT_MAX, true],
@@ -140,7 +142,7 @@ class CacheAdapterSelectorTest extends TestCase
 
     private function saveAndLocate(AdapterInterface $adapter, mixed $value): string
     {
-        $item = $adapter->getItem(self::KEY);
+        $item = $adapter->getItem($this->key);
         $item->set($value);
         self::assertTrue($adapter->save($item));
 
