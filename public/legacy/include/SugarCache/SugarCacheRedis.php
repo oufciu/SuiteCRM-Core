@@ -45,6 +45,8 @@
  * $sugar_config['external_cache']['redis']['port'] = 6379;
  * $sugar_config['external_cache']['redis']['password'] = 'Your-Password';
  * $sugar_config['external_cache']['redis']['database'] = 0;
+ * $sugar_config['external_cache']['redis']['connect_timeout'] = 0.1;
+ * $sugar_config['external_cache']['redis']['read_timeout'] = 1.0;
  */
 
 require_once('include/SugarCache/SugarCacheAbstract.php');
@@ -117,12 +119,18 @@ class SugarCacheRedis extends SugarCacheAbstract
     {
         try {
             if (!($this->_redis instanceof Redis)) {
-                $this->_redis = new Redis();
+                $this->_redis = $this->createRedisClient();
                 $this->_host = SugarConfig::getInstance()->get('external_cache.redis.host', $this->_host);
                 $this->_port = SugarConfig::getInstance()->get('external_cache.redis.port', $this->_port);
                 $this->_password = SugarConfig::getInstance()->get('external_cache.redis.password', $this->_password);
                 $this->_database = SugarConfig::getInstance()->get('external_cache.redis.database', $this->_database);
-                if (!$this->_redis->connect($this->_host, $this->_port)) {
+                $connectTimeout = (float) SugarConfig::getInstance()->get('external_cache.redis.connect_timeout', 0.1);
+                $readTimeout = (float) SugarConfig::getInstance()->get('external_cache.redis.read_timeout', 1.0);
+                // Zero means unlimited in phpredis; malformed settings must not restore an unbounded probe.
+                $connectTimeout = is_finite($connectTimeout) && $connectTimeout > 0 ? $connectTimeout : 0.1;
+                $readTimeout = is_finite($readTimeout) && $readTimeout > 0 ? $readTimeout : 1.0;
+                if (!$this->_redis->connect($this->_host, $this->_port, $connectTimeout, null, 0, $readTimeout)) {
+                    $this->_redis = null;
                     return false;
                 }
                 if (!empty($this->_password)) {
@@ -133,10 +141,16 @@ class SugarCacheRedis extends SugarCacheAbstract
                 }
             }
         } catch (RedisException $e) {
+            $this->_redis = null;
             return false;
         }
         
         return $this->_redis;
+    }
+
+    protected function createRedisClient()
+    {
+        return new Redis();
     }
     
     /**
