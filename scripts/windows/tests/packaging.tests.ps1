@@ -147,6 +147,10 @@ Describe 'Production startup cache warmup' {
             ($Arguments -contains 'cache:warmup') -and ($Arguments -contains '--env=prod') -and
             ($Arguments -contains '--no-debug') -and ($Arguments -contains 'max_execution_time=0')
         }
+        Assert-MockCalled Invoke-PackagingCommand -Times 1 -Exactly -Scope It -ParameterFilter {
+            $Name -eq 'startup-legacy-cache-config' -and $TimeoutSeconds -eq 30 -and
+            ($Arguments -contains (Join-Path $context.Repo 'scripts\windows\configure-legacy-cache.php'))
+        }
     }
     It 'skips uninstalled checkouts' {
         Remove-Item -LiteralPath $config
@@ -158,6 +162,68 @@ Describe 'Production startup cache warmup' {
         Mock Invoke-PackagingCommand { [pscustomobject]@{ExitCode=23} }
         { Invoke-ProductionCacheWarmup $context } | Should Throw 'Apache was not started'
         $env:APP_ENV | Should Be $before
+    }
+    It 'enables isolated production OPcache while preserving extension parity' {
+        $source = Get-Content -LiteralPath (Join-Path $PSScriptRoot '..\runtime.ps1') -Raw
+        foreach ($line in @('zend_extension = opcache','opcache.enable = 1','opcache.enable_cli = 0',
+            'opcache.memory_consumption = 256','opcache.max_accelerated_files = 20000',
+            'opcache.validate_timestamps = 1','opcache.revalidate_freq = 2','opcache.cache_id = "$id"',
+            'extension = "$redisPath"','extension = "$amqpPath"')) {
+            $source.Contains($line) | Should Be $true
+        }
+    }
+}
+
+Describe 'Legacy cache configuration helper with native PHP' {
+    $phpCommand = Get-Command php.exe -ErrorAction SilentlyContinue
+    $php = if ($env:SUITECRM_TEST_PHP) { $env:SUITECRM_TEST_PHP } elseif ($phpCommand) { $phpCommand.Source } else { $null }
+    $helper = Join-Path $PSScriptRoot '..\configure-legacy-cache.php'
+    $legacy = Join-Path $TestDrive 'legacy config with spaces'
+    $config = Join-Path $legacy 'config.php'
+    $override = Join-Path $legacy 'config_override.php'
+    BeforeEach {
+        $null = New-Item -ItemType Directory -Path $legacy -Force
+        '<?php $sugar_config = [];' | Set-Content -LiteralPath $config -Encoding ASCII
+        Remove-Item -LiteralPath $override -ErrorAction SilentlyContinue
+    }
+    It 'adds a guarded default once without changing existing content' -Skip:(-not $php) {
+        $existing = '<?php $sugar_config["default_export_charset"] = "UTF-8";'
+        [IO.File]::WriteAllText($override, $existing)
+        (& $php -n $helper $legacy) | Should Be 'unconfigured-redis-disabled'
+        $once = [IO.File]::ReadAllText($override)
+        $once.StartsWith($existing) | Should Be $true
+        (& $php -n $helper $legacy) | Should Be 'operator-value-preserved'
+        [IO.File]::ReadAllText($override) | Should Be $once
+    }
+    It 'preserves an explicit operator false value' -Skip:(-not $php) {
+        $existing = '<?php $sugar_config["external_cache_disabled_redis"] = false;'
+        [IO.File]::WriteAllText($override, $existing)
+        (& $php -n $helper $legacy) | Should Be 'operator-value-preserved'
+        [IO.File]::ReadAllText($override) | Should Be $existing
+    }
+    It 'preserves an explicit operator true value' -Skip:(-not $php) {
+        $existing = '<?php $sugar_config["external_cache_disabled_redis"] = true;'
+        [IO.File]::WriteAllText($override, $existing)
+        (& $php -n $helper $legacy) | Should Be 'operator-value-preserved'
+        [IO.File]::ReadAllText($override) | Should Be $existing
+    }
+    It 'preserves configured Redis servers' -Skip:(-not $php) {
+        $existing = '<?php $sugar_config["external_cache"]["redis"]["host"] = "127.0.0.1";'
+        [IO.File]::WriteAllText($override, $existing)
+        (& $php -n $helper $legacy) | Should Be 'configured-redis-preserved'
+        [IO.File]::ReadAllText($override) | Should Be $existing
+    }
+    It 'handles a closed PHP tag and later explicit Redis configuration' -Skip:(-not $php) {
+        '<?php $sugar_config["other"] = true; ?>' | Set-Content -LiteralPath $override -Encoding ASCII
+        (& $php -n $helper $legacy) | Should Be 'unconfigured-redis-disabled'
+        (& $php -n -r '$sugar_config=[];ob_start();require($argv[1]);echo strlen(ob_get_clean());' $override) | Should Be '0'
+        '<?php $sugar_config = ["external_cache" => ["redis" => ["host" => "127.0.0.1"]]];' | Set-Content -LiteralPath $config -Encoding ASCII
+        (& $php -n $helper $legacy) | Should Be 'configured-redis-preserved'
+    }
+    It 'skips an uninstalled checkout without creating overrides' -Skip:(-not $php) {
+        Remove-Item -LiteralPath $config
+        (& $php -n $helper $legacy) | Should Be 'uninstalled'
+        (Test-Path -LiteralPath $override) | Should Be $false
     }
 }
 

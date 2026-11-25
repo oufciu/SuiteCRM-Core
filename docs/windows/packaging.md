@@ -97,6 +97,17 @@ stops the owned database. Fresh uninstalled checkouts skip warmup.
 Logs use the `startup-cache-warmup` prefix under `tests/_output/windows`.
 The generated php.ini explicitly sets `zend.assertions=-1`, matching PHP's
 production template. Tests can override it on the CLI with `-d zend.assertions=1`.
+OPcache is loaded for Apache (256MiB,20000 keys,16MiB interned strings), disabled
+for CLI, and isolated by checkout id. Timestamp validation stays on with a2s
+recheck interval; no disk file cache or antivirus exclusion is configured.
+
+Before warmup, installed checkouts receive an idempotent legacy Redis-cache
+default in `public/legacy/config_override.php`. If no Redis server is configured
+and no explicit `external_cache_disabled_redis` value exists, it defaults to
+true. Existing operator values (including false) and configured Redis servers
+win; existing file content is retained, and later server configuration also
+wins over the guarded default. The pinned Redis/AMQP extensions remain loaded
+for Composer platform parity; no Redis server is installed or started.
 Task settings ignore duplicate runs, allow battery
 operation, have no execution time limit, and retry a failed launcher up to three
 times at one-minute intervals. A listener owned by another executable/config

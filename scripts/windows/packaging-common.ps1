@@ -104,6 +104,9 @@ function Invoke-ProductionCacheWarmup($Context) {
     $saved = Get-PackagingEnvironmentSnapshot
     try {
         Set-PackagingEnvironment $Context
+        $configure = Get-PhpCliArguments @((Join-Path $Context.Repo 'scripts\windows\configure-legacy-cache.php'), (Join-Path $Context.Repo 'public\legacy'))
+        $configured = Invoke-PackagingCommand $Context 'startup-legacy-cache-config' $Context.Php $configure -TimeoutSeconds 30
+        if ($configured.ExitCode -ne 0) { throw 'Legacy cache configuration failed; Apache was not started.' }
         $arguments = Get-PhpCliArguments @('-d', 'max_execution_time=0', 'bin/console', 'cache:warmup', '--env=prod', '--no-debug', '--no-interaction')
         $result = Invoke-PackagingCommand $Context 'startup-cache-warmup' $Context.Php $arguments -TimeoutSeconds 300
         if ($result.ExitCode -ne 0) { throw 'Production cache warmup failed; Apache was not started. Inspect startup-cache-warmup logs.' }

@@ -55,7 +55,7 @@ $redis = Join-Path $packages 'redis'
 $amqpDll = Join-Path $amqp 'php_amqp.dll'
 $redisDll = Join-Path $redis 'php_redis.dll'
 $rabbitMqDll = Join-Path $amqp 'rabbitmq.4.dll'
-$phpFiles = @($php, $amqpDll, $redisDll, $rabbitMqDll)
+$phpFiles = @($php, (Join-Path $phpHome 'ext\php_opcache.dll'), $amqpDll, $redisDll, $rabbitMqDll)
 $required = switch ($Action) {
     Check { $phpFiles + @($composer, $apache, $db, $corepack) }
     Backend { $phpFiles + @($composer) }
@@ -119,6 +119,15 @@ extension = sodium
 extension = zip
 extension = "$amqpPath"
 extension = "$redisPath"
+zend_extension = opcache
+opcache.enable = 1
+opcache.enable_cli = 0
+opcache.memory_consumption = 256
+opcache.interned_strings_buffer = 16
+opcache.max_accelerated_files = 20000
+opcache.validate_timestamps = 1
+opcache.revalidate_freq = 2
+opcache.cache_id = "$id"
 date.timezone = UTC
 memory_limit = 512M
 max_execution_time = 180
