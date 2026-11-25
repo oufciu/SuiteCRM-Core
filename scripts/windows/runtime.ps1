@@ -7,7 +7,8 @@ param(
     [ValidateRange(1024, 65535)]
     [int] $HttpPort = 18080,
     [ValidateRange(1024, 65535)]
-    [int] $DbPort = 13306
+    [int] $DbPort = 13306,
+    [switch] $WarmupProdCache
 )
 
 $ErrorActionPreference = 'Stop'
@@ -54,7 +55,7 @@ $redis = Join-Path $packages 'redis'
 $amqpDll = Join-Path $amqp 'php_amqp.dll'
 $redisDll = Join-Path $redis 'php_redis.dll'
 $rabbitMqDll = Join-Path $amqp 'rabbitmq.4.dll'
-$phpFiles = @($php, $amqpDll, $redisDll, $rabbitMqDll)
+$phpFiles = @($php, (Join-Path $phpHome 'ext\php_opcache.dll'), $amqpDll, $redisDll, $rabbitMqDll)
 $required = switch ($Action) {
     Check { $phpFiles + @($composer, $apache, $db, $corepack) }
     Backend { $phpFiles + @($composer) }
@@ -118,9 +119,19 @@ extension = sodium
 extension = zip
 extension = "$amqpPath"
 extension = "$redisPath"
+zend_extension = opcache
+opcache.enable = 1
+opcache.enable_cli = 0
+opcache.memory_consumption = 256
+opcache.interned_strings_buffer = 16
+opcache.max_accelerated_files = 20000
+opcache.validate_timestamps = 1
+opcache.revalidate_freq = 2
+opcache.cache_id = "$id"
 date.timezone = UTC
 memory_limit = 512M
 max_execution_time = 180
+zend.assertions = -1
 post_max_size = 64M
 upload_max_filesize = 32M
 error_reporting = E_ALL
@@ -282,6 +293,10 @@ GRANT ALL ON suitecrm_windows.* TO 'suitecrm_windows'@'127.0.0.1';
 "@ | & $dbClient $clientArg --batch
                 if ($LASTEXITCODE -ne 0) { throw 'Could not create the dedicated database and application user.' }
                 Write-Config $initialized "initialized`n"
+            }
+            if ($WarmupProdCache) {
+                . (Join-Path $PSScriptRoot 'packaging-common.ps1')
+                Invoke-ProductionCacheWarmup (Get-PackagingContext $root $HttpPort $DbPort)
             }
             $apacheProcess = Start-Process -FilePath $apache -ArgumentList "-X -f `"$apacheConfig`"" -PassThru -NoNewWindow
             $deadline = [DateTime]::UtcNow.AddSeconds(45)

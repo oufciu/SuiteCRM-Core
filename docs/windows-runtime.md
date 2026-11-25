@@ -11,6 +11,10 @@ lists other versions. The build uses Node 22, which is compatible with Angular
 
 ## Set up a disposable checkout
 
+For the named build/test/run entry points and per-user logon startup, see
+[Windows packaging](windows/packaging.md). `install-service.ps1` defaults to
+Task Scheduler; a real Windows Service is an explicit administrative opt-in.
+
 Use a short Git worktree path on NTFS. From the worktree root, run each
 step in its own 64-bit PowerShell 5.1+ process:
 
