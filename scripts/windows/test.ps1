@@ -11,12 +11,12 @@ $results = @()
 try {
     Set-PackagingEnvironment $context
     if ($Suite -in @('unit', 'all')) {
-        $results += Invoke-PackagingCommand $context 'unit-build' $context.Php @('vendor/bin/codecept', 'build', '--no-colors')
-        $results += Invoke-PackagingCommand $context 'unit' $context.Php @('vendor/bin/codecept', 'run', 'unit', '--no-colors', '--xml=windows-unit.xml')
+        $results += Invoke-PackagingCommand $context 'unit-build' $context.Php (Get-PhpCliArguments @('vendor/bin/codecept', 'build', '--no-colors'))
+        $results += Invoke-PackagingCommand $context 'unit' $context.Php (Get-PhpCliArguments @('vendor/bin/codecept', 'run', 'unit', '--no-colors', '--xml=windows-unit.xml'))
     }
     if ($Suite -in @('integration', 'all')) {
         $results += Invoke-PackagingCommand $context 'packaging' $context.PowerShell @('-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', (Join-Path $PSScriptRoot 'tests\packaging.tests.ps1'), '-OutputPath', (Join-Path $context.Reports 'packaging.xml'))
-        $results += Invoke-PackagingCommand $context 'console-entry' $context.Php @('vendor/bin/phpunit', '--bootstrap', 'vendor/autoload.php', '--do-not-cache-result', '--log-junit', (Join-Path $context.Reports 'console-entry.xml'), 'tests/unit/core/legacy/SchedulerConsoleEntryPointTest.php')
+        $results += Invoke-PackagingCommand $context 'console-entry' $context.Php (Get-PhpCliArguments @('vendor/bin/phpunit', '--bootstrap', 'vendor/autoload.php', '--do-not-cache-result', '--log-junit', (Join-Path $context.Reports 'console-entry.xml'), 'tests/unit/core/legacy/SchedulerConsoleEntryPointTest.php'))
         $results += Invoke-PackagingCommand $context 'junit-reporter' $context.Node @('--test', '--test-reporter=junit', "--test-reporter-destination=$(Join-Path $context.Reports 'junit-reporter.xml')", (Join-Path $PSScriptRoot 'tests\karma-junit.test.cjs'))
     }
     if ($Suite -in @('frontend', 'all')) {

@@ -19,7 +19,7 @@ try {
     if ($Target -ne 'Backend') {
         Set-PackagingEnvironment $context
         $theme = Join-Path $context.Repo 'public\legacy\themes\suite8\css\Dawn'
-        $results += Invoke-PackagingCommand $context 'build-Dawn' $context.Php @((Join-Path $context.Repo 'vendor\bin\pscss'), '-s', 'compressed', (Join-Path $theme 'style.scss'), (Join-Path $theme 'style.css'))
+        $results += Invoke-PackagingCommand $context 'build-Dawn' $context.Php (Get-PhpCliArguments @((Join-Path $context.Repo 'vendor\bin\pscss'), '-s', 'compressed', (Join-Path $theme 'style.scss'), (Join-Path $theme 'style.css')))
         if ($results[-1].ExitCode -ne 0) { throw 'Dawn theme compilation failed.' }
     }
 } catch {

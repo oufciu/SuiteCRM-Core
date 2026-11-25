@@ -75,6 +75,11 @@ Describe 'Windows packaging common functions' {
         $result = Invoke-PackagingCommand $context 'cmd-failure' $shim @('value', '19')
         $result.ExitCode | Should Be 19
     }
+    It 'sends PHP CLI errors to stderr ahead of the command arguments' {
+        $arguments = Get-PhpCliArguments @('vendor/bin/codecept', 'run')
+        $arguments[0..3] -join ' ' | Should Be '-d display_errors=stderr -d log_errors=0'
+        $arguments[4..5] -join ' ' | Should Be 'vendor/bin/codecept run'
+    }
     It 'reports missing executables as failure' {
         $result = Invoke-PackagingCommand $context 'missing' (Join-Path $TestDrive 'missing.exe') @()
         $result.ExitCode | Should Be 1

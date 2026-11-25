@@ -86,6 +86,11 @@ function Get-RuntimeArguments($Context, [string] $Action) {
       '-HttpPort', [string]$Context.HttpPort, '-DbPort', [string]$Context.DbPort)
 }
 
+function Get-PhpCliArguments([string[]] $Arguments) {
+    # The instance php.ini logs errors to a file for the web server; CLI failures must reach the captured stderr.
+    @('-d', 'display_errors=stderr', '-d', 'log_errors=0') + $Arguments
+}
+
 function Set-PackagingEnvironment($Context) {
     $env:PHPRC = $Context.Instance
     $env:PHP_INI_SCAN_DIR = Join-Path $Context.Instance 'ini.d'
