@@ -122,6 +122,7 @@ extension = "$redisPath"
 date.timezone = UTC
 memory_limit = 512M
 max_execution_time = 180
+zend.assertions = -1
 post_max_size = 64M
 upload_max_filesize = 32M
 error_reporting = E_ALL

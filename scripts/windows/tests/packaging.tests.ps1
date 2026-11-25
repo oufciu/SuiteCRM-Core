@@ -129,6 +129,17 @@ Describe 'Production startup cache warmup' {
         'fixture' | Set-Content -LiteralPath $config
         Mock Invoke-PackagingCommand { [pscustomobject]@{ExitCode=0} }
     }
+    It 'sets assertions to the production value in the generated PHP ini template' {
+        $tokens = $null; $errors = $null
+        $ast = [Management.Automation.Language.Parser]::ParseFile((Join-Path $PSScriptRoot '..\runtime.ps1'), [ref]$tokens, [ref]$errors)
+        $templates = @($ast.FindAll({
+            param($node)
+            $node -is [Management.Automation.Language.CommandAst] -and $node.GetCommandName() -eq 'Write-Config' -and
+            $node.CommandElements[1].Extent.Text -eq '$phpIni'
+        }, $true))
+        $templates.Count | Should Be 1
+        $templates[0].CommandElements[2].Extent.Text | Should Match '(?m)^zend\.assertions\s*=\s*-1\s*$'
+    }
     It 'uses prod no-debug warmup with a bounded native helper' {
         Invoke-ProductionCacheWarmup $context
         Assert-MockCalled Invoke-PackagingCommand -Times 1 -Exactly -Scope It -ParameterFilter {

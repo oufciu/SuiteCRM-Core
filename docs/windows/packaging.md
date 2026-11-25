@@ -95,6 +95,8 @@ after MariaDB is ready and before Apache starts, installed checkouts run
 account, with a300s wall-clock limit. A failure leaves Apache unstarted and
 stops the owned database. Fresh uninstalled checkouts skip warmup.
 Logs use the `startup-cache-warmup` prefix under `tests/_output/windows`.
+The generated php.ini explicitly sets `zend.assertions=-1`, matching PHP's
+production template. Tests can override it on the CLI with `-d zend.assertions=1`.
 Task settings ignore duplicate runs, allow battery
 operation, have no execution time limit, and retry a failed launcher up to three
 times at one-minute intervals. A listener owned by another executable/config
