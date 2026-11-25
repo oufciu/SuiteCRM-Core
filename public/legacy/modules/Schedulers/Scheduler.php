@@ -792,8 +792,11 @@ class Scheduler extends SugarBean
                 <tr class="evenListRowS1">
                     <td scope="row" valign="top" width="70%"><span>
                         ' . $mod_strings['LBL_CRON_WINDOWS_DESC'] . '<br>
-                        <b>cd /D ' . realpath('./') . '<br>
-                        php.exe -f cron.php</b>
+                        ' . $mod_strings['LBL_CRON_WINDOWS_DESC2'] . '<br>
+                        <code>cd /d "[path\to\suite\instance]"<br>
+                        "[path\to\php.exe]" "bin\console" schedulers:run</code><br>
+                        ' . $mod_strings['LBL_CRON_WINDOWS_DESC3'] . '<br>
+                        ' . $mod_strings['LBL_CRON_WINDOWS_TASK_ACCOUNT'] . '
                     </span></td>
                 </tr>
             </table>';

@@ -143,6 +143,7 @@ $mod_strings = array(
     'LBL_CRON_WINDOWS_DESC' => 'In order to run the SuiteCRM Schedulers',
     'LBL_CRON_WINDOWS_DESC2' => '1. Create a batch file to run using Windows Scheduled Tasks. The batch file should include the following commands:',
     'LBL_CRON_WINDOWS_DESC3' => 'Please update [path\to\php.exe] and [path\to\suite\instance] to reflect your environment.',
+    'LBL_CRON_WINDOWS_TASK_ACCOUNT' => 'Use the SuiteCRM installation root (the folder containing bin\console). Add the full, case-sensitive whoami output for the task account to cron.allowed_cron_users in public\legacy\config_override.php. For portable PHP and Task Scheduler setup, see docs/windows/scheduler.md in the source checkout.',
     'LBL_SCHEDULERS_INFO' => 'Scheduler Information',
     'LBL_SCHEDULERS_NEVER_RUN' => 'Schedulers have never been run.',
     // Subpanels

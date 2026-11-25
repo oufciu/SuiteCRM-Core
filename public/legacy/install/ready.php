@@ -266,8 +266,11 @@ if (is_windows()) {
         }
     }
     $cronString = '<p><b>'.$mod_strings_scheduler['LBL_CRON_WINDOWS_DESC'].'</b><br>
-						cd /D '.realpath('./').'<br>
-						php.exe -f cron.php
+						'.$mod_strings_scheduler['LBL_CRON_WINDOWS_DESC2'].'<br>
+						<code>cd /d "[path\to\suite\instance]"<br>
+						"[path\to\php.exe]" "bin\console" schedulers:run</code><br>
+						'.$mod_strings_scheduler['LBL_CRON_WINDOWS_DESC3'].'<br>
+						'.$mod_strings_scheduler['LBL_CRON_WINDOWS_TASK_ACCOUNT'].'
 						<br>'.$error.'</p>
 			   ';
 } else {
